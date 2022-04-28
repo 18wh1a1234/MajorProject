@@ -1,4 +1,4 @@
-from tkinter import *
+ from tkinter import *
 import tkinter
 from tkinter import filedialog
 from tkinter.filedialog import askopenfilename
@@ -116,7 +116,58 @@ def VGG16():
     VGG16_accuracy = vgg_acc[29]*100
     text.insert(END,"VGG16 Training Model Accuracy = "+str(VGG16_accuracy)+"\n")
 
-def Gaitclassification():
+
+def gaitClassification():
+    global filename
+    global net
+    cap = cv2.VideoCapture(filename)
+    has_Frame, frame = cap.read()
+    video_writer = cv2.VideoWriter('output.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 10, (frame.shape[1],frame.shape[0]))
+
+    while cv2.waitKey(1) < 0:
+        t = time.time()
+        has_Frame, frame = cap.read()
+        frameCopy = np.copy(frame)
+        if not has_Frame:
+            cv2.waitKey()
+            break
+        frame_Width = frame.shape[1]
+        frame_Height = frame.shape[0]
+        inp_Blob = cv2.dnn.blobFromImage(frame, 1.0 / 255, (in_Width, in_Height), (0, 0, 0), swapRB=False, crop=False)
+        net.setInput(inp_Blob)
+        output = net.forward()
+        H = output.shape[2]
+        W = output.shape[3]
+        points = []
+        for i in range(n_Points):
+            probMap = output[0, i, :, :]
+            minVal, prob, minLoc, point = cv2.minMaxLoc(probMap)
+            x = (frame_Width * point[0]*1.5) / W
+            y = (frame_Height * point[1]*1.1) / H 
+            if prob > threshold : 
+                cv2.circle(frameCopy, (int(x), int(y)), 8, (0, 255, 255), thickness=-1, lineType=cv2.FILLED)
+                cv2.putText(frameCopy, "{}".format(i), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, lineType=cv2.LINE_AA)
+                points.append((int(x), int(y)))
+            else :
+                points.append(None)
+        for pair in POSE_PAIRS:
+            partA = pair[0]
+            partB = pair[1]
+            print(str(pair[0])+" "+str(pair[1])+" "+str(partA)+" "+str(partB))
+            if points[partA] and points[partB]:
+                cv2.line(frame, points[partA], points[partB], (0, 255, 255), 3, lineType=cv2.LINE_AA)
+                cv2.circle(frame, points[partA], 8, (0, 0, 255), thickness=-1, lineType=cv2.FILLED)
+                cv2.circle(frame, points[partB], 8, (0, 0, 255), thickness=-1, lineType=cv2.FILLED)
+                if partA >= 8 and partA < len(POSE_NAMES)-1:
+                    #cv2.putText(frame, POSE_NAMES[partA], (50, 100),  cv2.FONT_HERSHEY_SIMPLEX,0.8, (0, 255, 255), 2)
+                    text.insert(END,POSE_NAMES[partA]+"\n")
+                    text.update_idletasks()
+        cv2.putText(frame, "time taken = {:.2f} sec --Gait is classified".format(time.time() - t), (50, 50), cv2.FONT_HERSHEY_COMPLEX, .8, (255, 50, 0), 2, lineType=cv2.LINE_AA)
+        cv2.imshow('Output-Skeleton', frame)
+        video_writer.write(frame)                
+    video_writer.release()
+
+def Opencv():
     cap = cv2.VideoCapture(filename)
     cap.set(50,1500)
     #cap.set(4,720)
@@ -208,58 +259,58 @@ def compare():
 
 
 
-"""def Livedemo():
- #   cap = cv2.VideoCapture(0)
- #  cap.set(50,1500)
-    #cap.set(4,720)
-    #cap.set(10,150)
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
-    pTime = 0
-    mpPose = mp.solutions.pose
-    mpDraw = mp.solutions.drawing_utils
-    mp_drawing_styles = mp.solutions.drawing_styles
-    pose = mpPose.Pose(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5
+def Livedemo():
+        cap = cv2.VideoCapture(0)
+        cap.set(50,1500)
+        #cap.set(4,720)
+        #cap.set(10,150)
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+        pTime = 0
+        mpPose = mp.solutions.pose
+        mpDraw = mp.solutions.drawing_utils
+        mp_drawing_styles = mp.solutions.drawing_styles
+        pose = mpPose.Pose(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
 
-    )
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
+        )
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
             
-
-        frame = cv2.resize(frame, (700, 1000))
-        
-        frame.flags.writeable = False
-        imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(imgRGB)
-        # print(results.pose_landmarks)
-
-        frame.flags.writeable = True
-        main = results.pose_landmarks
-        if results.pose_landmarks :
-            # print(results.pose_landmarks)
-            for landmark in main.landmark:
-                landmark.x+= 0.4
                 
-                # landmark.y+=0.5
-            mpDraw.draw_landmarks(frame, results.pose_landmarks, mpPose.POSE_CONNECTIONS,  connection_drawing_spec= mpDraw.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=2))
-        
-        cTime = time.time()
-        fps = 1 / (cTime - pTime)
-        pTime = cTime
-        # cv2.putText(frame, "FPS: {:.2f}".format(fps), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        # frame.translateXY(0, 0)
-        # cv2.flip(frame, 1)
 
-        cv2.imshow('frame', frame)
-        if cv2.waitKey(1) == ord('q'):
-            break
-    cap.release()
-    cv2.destroyAllWindowsS()"""
+            frame = cv2.resize(frame, (700, 1000))
+            
+            frame.flags.writeable = False
+            imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(imgRGB)
+            # print(results.pose_landmarks)
+
+            frame.flags.writeable = True
+            main = results.pose_landmarks
+            if results.pose_landmarks :
+                # print(results.pose_landmarks)
+                for landmark in main.landmark:
+                    landmark.x+= 0.4
+                    
+                    # landmark.y+=0.5
+                mpDraw.draw_landmarks(frame, results.pose_landmarks, mpPose.POSE_CONNECTIONS,  connection_drawing_spec= mpDraw.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=2))
+            
+            cTime = time.time()
+            fps = 1 / (cTime - pTime)
+            pTime = cTime
+            # cv2.putText(frame, "FPS: {:.2f}".format(fps), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            # frame.translateXY(0, 0)
+            # cv2.flip(frame, 1)
+
+            cv2.imshow('frame', frame)
+            if cv2.waitKey(1) == ord('q'):
+                break
+        cap.release()
+        cv2.destroyAllWindowsS()
 
 
 def close():
@@ -292,25 +343,28 @@ vggButton = Button(main, text="VGG16 Algorithm", command=VGG16)
 vggButton.place(x=50,y=200)
 vggButton.config(font=font1) 
 
-processButton = Button(main, text="Start Gait Phase Classification", command=Gaitclassification)
+processButton = Button(main, text="Start Gait Phase Classification", command=gaitClassification)
 processButton.place(x=50,y=250)
 processButton.config(font=font1)
 
+processButton = Button(main, text="Using opencv", command=Opencv)
+processButton.place(x=50,y=300)
+processButton.config(font=font1)
+
 graphButton = Button(main, text="Accuracy & Loss Graph", command=graph)
-graphButton.place(x=50,y=300)
+graphButton.place(x=50,y=350)
 graphButton.config(font=font1)
 
 comparegraph = Button(main, text="Compare Graph", command=compare)
-comparegraph.place(x=50,y=350)
+comparegraph.place(x=50,y=400)
 comparegraph.config(font=font1)
 
-#comparegraph = Button(main, text="Live demo", command=Livedemo)
-#comparegraph.place(x=50,y=400)
-#comparegraph.config(font=font1)
-
+comparegraph = Button(main, text="Live demo", command=Livedemo)
+comparegraph.place(x=50,y=450)
+comparegraph.config(font=font1)
 
 exitButton = Button(main, text="Exit", command=close)
-exitButton.place(x=50,y=400)
+exitButton.place(x=50,y=500)
 exitButton.config(font=font1)
 
 font1 = ('times', 12, 'bold')
